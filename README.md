@@ -48,12 +48,13 @@ jobs:
 ### One-time GCP WIF setup
 
 1. Pick or create a personal GCP project with billing enabled.
-2. Provision WIF + least-privilege `agy-code-review` service account (`roles/aiplatform.user` only):
+2. Provision WIF + least-privilege `agy-code-review` service account (`roles/aiplatform.user` only) with versioned GCS remote state:
    ```bash
    cd terraform/wif
    cp terraform.tfvars.example terraform.tfvars
-   # edit terraform.tfvars -> set project_id
-   terraform init
+   cp backend.hcl.example backend.hcl
+   # edit terraform.tfvars (project_id) and backend.hcl (GCS state bucket)
+   terraform init -backend-config=backend.hcl
    terraform apply
    ```
 3. Push the resulting values to repository Actions variables:

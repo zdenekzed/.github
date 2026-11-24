@@ -4,6 +4,10 @@
 *.tfstate.*
 *.tfvars
 !*.tfvars.example
+backend.hcl
+!backend.hcl.example
+tfplan
+*.tfplan
 crash.log
 override.tf
 override.tf.json
