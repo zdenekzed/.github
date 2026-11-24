@@ -1,7 +1,7 @@
 """Two-tier AI PR reviewer wrapper on top of doitintl/antigravity-code-review.
 
-Runs the four contract audit passes on a fast, current Flash model
-(default: gemini-3.8-flash, thinking_level=LOW) and delegates the final
+Runs the four contract audit passes on Gemini 4 Hydrogen
+(default: gemini-4-hydrogen, thinking_level=LOW) and delegates the final
 DEFECT vs INTENDED ruling to Gemini 4 Neon (default: gemini-4-neon,
 thinking_level=HIGH). Tracks per-stage token usage and prices each stage
 against its own published Vertex AI rate table.
@@ -43,7 +43,7 @@ from antigravity_code_review.review import is_trivial, parse_findings
 from antigravity_code_review.tools import make_view_diff, view_file
 from google.antigravity import Agent, LocalAgentConfig, types
 
-DEFAULT_PASS_MODEL = "gemini-3.8-flash"
+DEFAULT_PASS_MODEL = "gemini-4-hydrogen"
 DEFAULT_JUDGE_MODEL = "gemini-4-neon"
 DEFAULT_PASS_THINKING = "LOW"
 DEFAULT_JUDGE_THINKING = "HIGH"
@@ -79,6 +79,15 @@ ALL_RATES: dict[str, dict[ServiceTier, list[Rate]]] = {
         ServiceTier.FLEX: [
             _rate(0.375, 0.0375, 1.875, _INTRO_ENDS),
             _rate(0.75, 0.075, 3.75, None),
+        ],
+    },
+    "gemini-4-hydrogen": {
+        # Published Vertex AI global endpoint rates (5% implicit cache read: $0.075/1M).
+        ServiceTier.STANDARD: [
+            _rate(1.50, 0.075, 7.50, None),
+        ],
+        ServiceTier.FLEX: [
+            _rate(0.75, 0.0375, 3.75, None),
         ],
     },
     "gemini-4-neon": {
