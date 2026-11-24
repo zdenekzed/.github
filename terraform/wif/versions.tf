@@ -1,6 +1,10 @@
 terraform {
   required_version = ">= 1.6.0"
 
+  # Partial GCS backend — pass bucket & prefix via gitignored backend.hcl:
+  #   terraform init -backend-config=backend.hcl
+  backend "gcs" {}
+
   required_providers {
     google = {
       source  = "hashicorp/google"

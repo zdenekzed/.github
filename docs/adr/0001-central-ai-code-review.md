@@ -19,7 +19,7 @@ Because `zdenekzed` is a personal GitHub account (not a GitHub Organization), or
 3. **Pinned upstream SHA and isolated venv:** Pin `doitintl/antigravity-code-review` to commit `8ef939d8cfb683bf998020dc6007e95b2971bd26` and install it into `${RUNNER_TEMP}/agy-review-venv` so the checked-out repository workspace stays untouched.
 4. **Explicit PR head checkout:** Check out `refs/pull/<PR>/head` so both `pull_request` events and `/review` `issue_comment` re-triggers inspect the PR's head revision rather than the default branch.
 5. **Graceful skip when unconfigured:** If any of `GCP_PROJECT`, `WIF_PROVIDER`, or `WIF_SERVICE_ACCOUNT` is empty, the `gate` job skips cleanly with a notice rather than failing CI checks before GCP WIF is bootstrapped.
-6. **Owner-scoped shared WIF Terraform module (`terraform/wif/`):** Use one personal GCP project and WIF provider with `attribute_condition = "assertion.repository_owner == 'zdenekzed'"` (optionally narrowed by `allowed_repositories`) and a single least-privilege service account holding only `roles/aiplatform.user`.
+6. **Owner-scoped shared WIF Terraform module (`terraform/wif/`) with partial GCS backend:** Use one personal GCP project and WIF provider with `attribute_condition = "assertion.repository_owner == 'zdenekzed'"` (optionally narrowed by `allowed_repositories`) and a single least-privilege service account holding only `roles/aiplatform.user`. Remote state uses `backend "gcs" {}` configured out-of-band via gitignored `backend.hcl` against a versioned, UBLA + public-access-prevention GCS bucket so no project ID or state ever enters the public repository.
 
 ## Consequences
 
