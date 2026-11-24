@@ -12,7 +12,8 @@ Provides a reusable pull-request code review workflow backed by [`doitintl/antig
 - **Keyless Vertex AI auth (WIF only):** Refuses `GEMINI_API_KEY` / `GOOGLE_API_KEY`. Uses GCP Workload Identity Federation scoped to `assertion.repository_owner == 'zdenekzed'` (or an explicit allowlist).
 - **Graceful skip before setup:** If a repository does not have `GCP_PROJECT`, `WIF_PROVIDER`, and `WIF_SERVICE_ACCOUNT` set yet, the `gate` job exits cleanly with a notice rather than failing PR checks.
 - **Re-trigger on demand:** Comment `/review` on any PR (restricted to `OWNER`, `MEMBER`, or `COLLABORATOR`).
-- **Isolated runtime:** Installs `antigravity-code-review` (pinned by commit SHA) into `${RUNNER_TEMP}/agy-review-venv` outside the checked-out workspace, and checks out `refs/pull/<PR>/head` so both `pull_request` and `/review` comment runs inspect the PR's head commit.
+- **Two-tier model quality:** Runs the 4 contract audit passes on `gemini-3.8-flash` (`thinking_level=MEDIUM`) and the final DEFECT vs INTENDED judge on `gemini-3.1-pro-preview` (`thinking_level=HIGH`) via `scripts/run_review.py` (overridable via `workflow_call` inputs), with accurate per-stage cost tracking in `review-cost.json`.
+- **Isolated runtime:** Installs `antigravity-code-review` (pinned by commit SHA) into `${RUNNER_TEMP}/agy-review-venv` and clones the central runner outside the checked-out workspace, checking out `refs/pull/<PR>/head` so both `pull_request` and `/review` comment runs inspect the PR's head commit.
 
 ### Onboarding a repository
 
@@ -75,6 +76,7 @@ jobs:
 ## Repository layout
 
 - `.github/workflows/ai-code-review.yml` — reusable `workflow_call` workflow
+- `scripts/run_review.py` + `tests/test_run_review.py` — two-tier model wrapper (`3.8-flash` + `3.1-pro-preview` judge) with per-stage cost accounting
 - `workflow-templates/` — GitHub UI workflow starter template for new repositories
 - `terraform/wif/` — shared GCP Workload Identity Federation Terraform module
 - `scripts/sync-github-vars.sh` — sets `GCP_PROJECT`, `WIF_PROVIDER`, `WIF_SERVICE_ACCOUNT` via `gh variable set`
