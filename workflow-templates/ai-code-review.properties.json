@@ -1,0 +1,9 @@
+{
+  "name": "AI Code Review (Antigravity)",
+  "description": "Pull-context AI pull request reviewer via Vertex AI + WIF using doitintl/antigravity-code-review.",
+  "iconName": "octicon code-review",
+  "categories": [
+    "Code review",
+    "Automation"
+  ]
+}

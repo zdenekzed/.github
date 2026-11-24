@@ -1,0 +1,168 @@
+name: Reusable AI code review
+
+# Central reusable workflow for zdenekzed/* repositories.
+# Wraps https://github.com/doitintl/antigravity-code-review (pinned by commit SHA)
+# and authenticates strictly via GCP Workload Identity Federation (WIF) to Vertex AI.
+
+on:
+  workflow_call:
+    inputs:
+      gcp_project:
+        description: "GCP project ID billed for Vertex AI inference (from vars.GCP_PROJECT)"
+        type: string
+        required: false
+        default: ""
+      wif_provider:
+        description: "Full GCP Workload Identity Provider resource name (from vars.WIF_PROVIDER)"
+        type: string
+        required: false
+        default: ""
+      wif_service_account:
+        description: "GCP Service Account email for Vertex AI (from vars.WIF_SERVICE_ACCOUNT)"
+        type: string
+        required: false
+        default: ""
+      gcp_location:
+        description: "Vertex AI location (antigravity-code-review requires 'global' for Gemini 3.7 Flash)"
+        type: string
+        required: false
+        default: "global"
+      reviewer_ref:
+        description: "Pinned git ref (commit SHA) of doitintl/antigravity-code-review"
+        type: string
+        required: false
+        default: "8ef939d8cfb683bf998020dc6007e95b2971bd26"
+
+permissions:
+  contents: read
+  id-token: write       # WIF token exchange — no long-lived API keys
+  pull-requests: write  # Post inline review comments and summary
+
+jobs:
+  gate:
+    # Decide whether to run before spending any tokens or failing on missing WIF config.
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+      pr: ${{ steps.decide.outputs.pr }}
+      reason: ${{ steps.decide.outputs.reason }}
+    steps:
+      - id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+          IS_PR_COMMENT: ${{ github.event.issue.pull_request != null }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          ASSOCIATION: ${{ github.event.comment.author_association }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPO: ${{ github.event.pull_request.base.repo.full_name }}
+          GCP_PROJECT: ${{ inputs.gcp_project }}
+          WIF_PROVIDER: ${{ inputs.wif_provider }}
+          WIF_SERVICE_ACCOUNT: ${{ inputs.wif_service_account }}
+        run: |
+          set -euo pipefail
+          run=false; pr=""; reason=""
+
+          if [ "$EVENT" = "pull_request" ]; then
+            pr="$PR_NUMBER"
+            if [ -z "$HEAD_REPO" ] || [ -z "$BASE_REPO" ] || [ "$HEAD_REPO" != "$BASE_REPO" ]; then
+              reason="fork pull request (${HEAD_REPO:-unknown} -> ${BASE_REPO:-unknown}): no identity federation is available, so no review was posted"
+            else
+              run=true
+            fi
+          elif [ "$EVENT" = "issue_comment" ]; then
+            pr="$ISSUE_NUMBER"
+            if [ "$IS_PR_COMMENT" != "true" ]; then
+              reason="comment was not on a pull request"
+            elif ! printf '%s' "$COMMENT_BODY" | grep -qE '^[[:space:]]*/review([[:space:]]|$)'; then
+              reason="comment is not a /review command"
+            elif [ "$ASSOCIATION" != "OWNER" ] && [ "$ASSOCIATION" != "MEMBER" ] && [ "$ASSOCIATION" != "COLLABORATOR" ]; then
+              reason="commenter association '$ASSOCIATION' does not have write access; re-run refused"
+            else
+              run=true
+            fi
+          else
+            reason="unsupported trigger event '$EVENT'"
+          fi
+
+          # Graceful skip until repository Actions variables are provisioned via Terraform + sync-github-vars.sh.
+          if [ "$run" = "true" ]; then
+            missing=()
+            [ -z "$GCP_PROJECT" ] && missing+=("GCP_PROJECT")
+            [ -z "$WIF_PROVIDER" ] && missing+=("WIF_PROVIDER")
+            [ -z "$WIF_SERVICE_ACCOUNT" ] && missing+=("WIF_SERVICE_ACCOUNT")
+            if [ "${#missing[@]}" -gt 0 ]; then
+              run=false
+              reason="WIF not configured on ${GITHUB_REPOSITORY} — set Actions variables: ${missing[*]} (see zdenekzed/.github)"
+            fi
+          fi
+
+          echo "run=$run"       >> "$GITHUB_OUTPUT"
+          echo "pr=$pr"         >> "$GITHUB_OUTPUT"
+          echo "reason=$reason" >> "$GITHUB_OUTPUT"
+          if [ "$run" = "true" ]; then
+            echo "::notice::Running AI code review for PR #$pr"
+          else
+            echo "::notice::Skipped AI code review: $reason"
+          fi
+
+  review:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: refs/pull/${{ needs.gate.outputs.pr }}/head
+          fetch-depth: 0
+
+      - name: Refuse API-key credentials
+        run: |
+          set -euo pipefail
+          if [ -n "${GEMINI_API_KEY:-}" ] || [ -n "${GOOGLE_API_KEY:-}" ]; then
+            echo "::error::An API key is set in the runner environment. This reviewer authenticates by WIF only."
+            exit 1
+          fi
+          echo "WIF-only authentication verified"
+
+      - uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935 # v2.1.8
+        with:
+          workload_identity_provider: ${{ inputs.wif_provider }}
+          service_account: ${{ inputs.wif_service_account }}
+
+      - uses: astral-sh/setup-uv@f94ec6bedd8674c4426838e6b50417d36b6ab231 # v5.3.1
+
+      - name: Install antigravity-code-review (isolated venv outside workspace)
+        env:
+          REVIEWER_REF: ${{ inputs.reviewer_ref }}
+        run: |
+          set -euo pipefail
+          uv venv "${RUNNER_TEMP}/agy-review-venv" --python 3.12
+          uv pip install --python "${RUNNER_TEMP}/agy-review-venv/bin/python" \
+            "git+https://github.com/doitintl/antigravity-code-review.git@${REVIEWER_REF}"
+
+      - name: Review pull request
+        env:
+          GOOGLE_CLOUD_PROJECT: ${{ inputs.gcp_project }}
+          GOOGLE_CLOUD_LOCATION: ${{ inputs.gcp_location }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ needs.gate.outputs.pr }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          "${RUNNER_TEMP}/agy-review-venv/bin/python" -m antigravity_code_review.review
+
+      - name: Upload cost artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: review-cost-pr-${{ needs.gate.outputs.pr }}
+          path: review-cost.json
+          if-no-files-found: warn
+
+  skipped:
+    needs: gate
+    if: needs.gate.outputs.run != 'true' && needs.gate.outputs.reason != ''
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "::notice::No review posted — ${{ needs.gate.outputs.reason }}"

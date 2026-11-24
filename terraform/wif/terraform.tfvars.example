@@ -1,0 +1,9 @@
+# Copy to terraform.tfvars (gitignored) and fill in your personal GCP project ID with billing enabled.
+project_id   = "your-personal-gcp-project-id"
+github_owner = "zdenekzed"
+
+# Leave empty to allow all non-fork repos under zdenekzed/*, or pin an explicit allowlist:
+# allowed_repositories = [
+#   "repo-one",
+#   "repo-two",
+# ]
