@@ -47,6 +47,11 @@ def test_pricing_for_38_flash_and_31_pro() -> None:
     assert pro.cost_usd == pytest.approx(3.50)
     assert pro.rate_applied == "standard"
 
+    # Gemini 4 Hydrogen standard rate: 0.5M*1.50 + 0.5M*0.075 + 0.2M*7.50 = 2.2875
+    hydrogen = price_session([turn], "gemini-4-hydrogen", date(2026, 11, 24), overrides=run_review.ALL_RATES)
+    assert hydrogen.cost_usd == pytest.approx(2.2875)
+    assert hydrogen.rate_applied == "standard"
+
     # Gemini 4 Neon standard rate: 0.5M*3.00 + 0.5M*0.30 + 0.2M*15.00 = 4.65
     neon = price_session([turn], "gemini-4-neon", date(2026, 11, 24), overrides=run_review.ALL_RATES)
     assert neon.cost_usd == pytest.approx(4.65)

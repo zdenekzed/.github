@@ -3,7 +3,7 @@ name: Reusable AI code review
 # Central reusable workflow for zdenekzed/* repositories.
 # Wraps https://github.com/doitintl/antigravity-code-review (pinned by commit SHA)
 # with a two-tier runner (scripts/run_review.py):
-#   - 4 audit passes: gemini-3.8-flash (thinking_level=LOW)
+#   - 4 audit passes: gemini-4-hydrogen (thinking_level=LOW)
 #   - Judge ruling:   gemini-4-neon (thinking_level=HIGH)
 # Authenticates strictly via GCP Workload Identity Federation (WIF) to Vertex AI.
 
@@ -39,7 +39,7 @@ on:
         description: "Vertex AI model for the four audit passes"
         type: string
         required: false
-        default: "gemini-3.8-flash"
+        default: "gemini-4-hydrogen"
       judge_model:
         description: "Vertex AI model for the final DEFECT vs INTENDED judge step"
         type: string
