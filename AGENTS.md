@@ -20,4 +20,5 @@ terraform -chdir=terraform/wif fmt -check
 terraform -chdir=terraform/wif init -backend=false
 terraform -chdir=terraform/wif validate
 bash -n scripts/sync-github-vars.sh
+python3 -m py_compile scripts/run_review.py tests/test_run_review.py
 ```

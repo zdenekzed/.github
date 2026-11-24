@@ -2,7 +2,10 @@ name: Reusable AI code review
 
 # Central reusable workflow for zdenekzed/* repositories.
 # Wraps https://github.com/doitintl/antigravity-code-review (pinned by commit SHA)
-# and authenticates strictly via GCP Workload Identity Federation (WIF) to Vertex AI.
+# with a two-tier runner (scripts/run_review.py):
+#   - 4 audit passes: gemini-3.8-flash (thinking_level=MEDIUM)
+#   - Judge ruling:   gemini-3.1-pro-preview (thinking_level=HIGH)
+# Authenticates strictly via GCP Workload Identity Federation (WIF) to Vertex AI.
 
 on:
   workflow_call:
@@ -23,7 +26,7 @@ on:
         required: false
         default: ""
       gcp_location:
-        description: "Vertex AI location (antigravity-code-review requires 'global' for Gemini 3.7 Flash)"
+        description: "Vertex AI location (global required for Gemini 3.x models)"
         type: string
         required: false
         default: "global"
@@ -32,6 +35,26 @@ on:
         type: string
         required: false
         default: "8ef939d8cfb683bf998020dc6007e95b2971bd26"
+      pass_model:
+        description: "Vertex AI model for the four audit passes"
+        type: string
+        required: false
+        default: "gemini-3.8-flash"
+      judge_model:
+        description: "Vertex AI model for the final DEFECT vs INTENDED judge step"
+        type: string
+        required: false
+        default: "gemini-3.1-pro-preview"
+      pass_thinking_level:
+        description: "ThinkingLevel for audit passes (MINIMAL|LOW|MEDIUM|HIGH|EXTRA_HIGH)"
+        type: string
+        required: false
+        default: "MEDIUM"
+      judge_thinking_level:
+        description: "ThinkingLevel for the judge step (MINIMAL|LOW|MEDIUM|HIGH|EXTRA_HIGH)"
+        type: string
+        required: false
+        default: "HIGH"
 
 permissions:
   contents: read
@@ -133,7 +156,7 @@ jobs:
 
       - uses: astral-sh/setup-uv@f94ec6bedd8674c4426838e6b50417d36b6ab231 # v5.3.1
 
-      - name: Install antigravity-code-review (isolated venv outside workspace)
+      - name: Install antigravity-code-review and fetch central runner (outside workspace)
         env:
           REVIEWER_REF: ${{ inputs.reviewer_ref }}
         run: |
@@ -141,6 +164,8 @@ jobs:
           uv venv "${RUNNER_TEMP}/agy-review-venv" --python 3.12
           uv pip install --python "${RUNNER_TEMP}/agy-review-venv/bin/python" \
             "git+https://github.com/doitintl/antigravity-code-review.git@${REVIEWER_REF}"
+          rm -rf "${RUNNER_TEMP}/central-reviewer"
+          git clone --depth 1 --branch main https://github.com/zdenekzed/.github.git "${RUNNER_TEMP}/central-reviewer"
 
       - name: Review pull request
         env:
@@ -149,8 +174,12 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ needs.gate.outputs.pr }}
           GH_TOKEN: ${{ github.token }}
+          REVIEW_PASS_MODEL: ${{ inputs.pass_model }}
+          REVIEW_JUDGE_MODEL: ${{ inputs.judge_model }}
+          REVIEW_PASS_THINKING: ${{ inputs.pass_thinking_level }}
+          REVIEW_JUDGE_THINKING: ${{ inputs.judge_thinking_level }}
         run: |
-          "${RUNNER_TEMP}/agy-review-venv/bin/python" -m antigravity_code_review.review
+          "${RUNNER_TEMP}/agy-review-venv/bin/python" "${RUNNER_TEMP}/central-reviewer/scripts/run_review.py"
 
       - name: Upload cost artifact
         if: always()
