@@ -47,6 +47,11 @@ def test_pricing_for_38_flash_and_31_pro() -> None:
     assert pro.cost_usd == pytest.approx(3.50)
     assert pro.rate_applied == "standard"
 
+    # Gemini 4 Neon standard rate: 0.5M*3.00 + 0.5M*0.30 + 0.2M*15.00 = 4.65
+    neon = price_session([turn], "gemini-4-neon", date(2026, 11, 24), overrides=run_review.ALL_RATES)
+    assert neon.cost_usd == pytest.approx(4.65)
+    assert neon.rate_applied == "standard"
+
 
 def test_merge_sessions_sums_and_propagates_unknown() -> None:
     t1 = TurnUsage(prompt_tokens=100_000, cached_tokens=50_000, candidate_tokens=1_000, thought_tokens=2_000)

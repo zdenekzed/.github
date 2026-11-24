@@ -3,8 +3,8 @@ name: Reusable AI code review
 # Central reusable workflow for zdenekzed/* repositories.
 # Wraps https://github.com/doitintl/antigravity-code-review (pinned by commit SHA)
 # with a two-tier runner (scripts/run_review.py):
-#   - 4 audit passes: gemini-3.8-flash (thinking_level=MEDIUM)
-#   - Judge ruling:   gemini-3.1-pro-preview (thinking_level=HIGH)
+#   - 4 audit passes: gemini-3.8-flash (thinking_level=LOW)
+#   - Judge ruling:   gemini-4-neon (thinking_level=HIGH)
 # Authenticates strictly via GCP Workload Identity Federation (WIF) to Vertex AI.
 
 on:
@@ -44,12 +44,12 @@ on:
         description: "Vertex AI model for the final DEFECT vs INTENDED judge step"
         type: string
         required: false
-        default: "gemini-3.1-pro-preview"
+        default: "gemini-4-neon"
       pass_thinking_level:
         description: "ThinkingLevel for audit passes (MINIMAL|LOW|MEDIUM|HIGH|EXTRA_HIGH)"
         type: string
         required: false
-        default: "MEDIUM"
+        default: "LOW"
       judge_thinking_level:
         description: "ThinkingLevel for the judge step (MINIMAL|LOW|MEDIUM|HIGH|EXTRA_HIGH)"
         type: string
@@ -134,6 +134,7 @@ jobs:
     needs: gate
     if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:

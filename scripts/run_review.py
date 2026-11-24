@@ -1,10 +1,10 @@
 """Two-tier AI PR reviewer wrapper on top of doitintl/antigravity-code-review.
 
 Runs the four contract audit passes on a fast, current Flash model
-(default: gemini-3.8-flash, thinking_level=MEDIUM) and delegates the final
-DEFECT vs INTENDED ruling to a stronger Pro judge (default:
-gemini-3.1-pro-preview, thinking_level=HIGH). Tracks per-stage token usage and
-prices each stage against its own published Vertex AI rate table.
+(default: gemini-3.8-flash, thinking_level=LOW) and delegates the final
+DEFECT vs INTENDED ruling to Gemini 4 Neon (default: gemini-4-neon,
+thinking_level=HIGH). Tracks per-stage token usage and prices each stage
+against its own published Vertex AI rate table.
 """
 
 from __future__ import annotations
@@ -44,8 +44,8 @@ from antigravity_code_review.tools import make_view_diff, view_file
 from google.antigravity import Agent, LocalAgentConfig, types
 
 DEFAULT_PASS_MODEL = "gemini-3.8-flash"
-DEFAULT_JUDGE_MODEL = "gemini-3.1-pro-preview"
-DEFAULT_PASS_THINKING = "MEDIUM"
+DEFAULT_JUDGE_MODEL = "gemini-4-neon"
+DEFAULT_PASS_THINKING = "LOW"
 DEFAULT_JUDGE_THINKING = "HIGH"
 
 VERTEX_PRICING_SOURCE = "https://cloud.google.com/vertex-ai/generative-ai/pricing"
@@ -79,6 +79,15 @@ ALL_RATES: dict[str, dict[ServiceTier, list[Rate]]] = {
         ServiceTier.FLEX: [
             _rate(0.375, 0.0375, 1.875, _INTRO_ENDS),
             _rate(0.75, 0.075, 3.75, None),
+        ],
+    },
+    "gemini-4-neon": {
+        # Published Vertex AI global endpoint paid rates (GA Nov 2026).
+        ServiceTier.STANDARD: [
+            _rate(3.00, 0.30, 15.00, None),
+        ],
+        ServiceTier.FLEX: [
+            _rate(1.50, 0.15, 7.50, None),
         ],
     },
     "gemini-3.1-pro-preview": {
@@ -236,7 +245,7 @@ async def run_two_tier_passes(
     judge_collector: UsageCollector,
     pass_model: str = DEFAULT_PASS_MODEL,
     judge_model: str = DEFAULT_JUDGE_MODEL,
-    pass_thinking: types.ThinkingLevel | None = types.ThinkingLevel.MEDIUM,
+    pass_thinking: types.ThinkingLevel | None = types.ThinkingLevel.LOW,
     judge_thinking: types.ThinkingLevel | None = types.ThinkingLevel.HIGH,
     passes: Sequence[tuple[str, str]] = CONTRACT_PASSES,
 ) -> tuple[list[dict[str, Any]], list[RunOutcome]]:
@@ -311,7 +320,7 @@ async def review(
     location: str = LOCATION,
     pass_model: str = DEFAULT_PASS_MODEL,
     judge_model: str = DEFAULT_JUDGE_MODEL,
-    pass_thinking: types.ThinkingLevel | None = types.ThinkingLevel.MEDIUM,
+    pass_thinking: types.ThinkingLevel | None = types.ThinkingLevel.LOW,
     judge_thinking: types.ThinkingLevel | None = types.ThinkingLevel.HIGH,
 ) -> int:
     """Review one pull request and publish findings plus cost artifact."""
